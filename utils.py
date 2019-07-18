@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import openpyxl
 import pickle
+from time import sleep
 from bs4 import BeautifulSoup
 from urllib import parse
 from tqdm import tqdm_notebook
@@ -11,22 +12,41 @@ from glob import glob
 
 def get_firm_uid(header_uids: dict, name_list: list) -> List[str]:
     
+    # use a counter to simulate human operation, every 20 times, we sleep 5 seconds
+    counter = 0
+    
     # define the request url for getting company uid
     uid_request_url_list = ["https://www.qichacha.com/search?key={}"\
                             .format(parse.quote(name)) for name in name_list]
     uid_list = []
-    for url in tqdm_notebook(uid_request_url_list):
+    for url, name in tqdm_notebook(zip(uid_request_url_list, name_list), \
+                                   total=len(name_list)):
+        
+        counter += 1
+        if counter % 20 == 0:
+            sleep(5)
+            counter = 0
+        
         response = requests.get(url, headers=header_uids)
-        soup = BeautifulSoup(response.content)
-        uid_list.append(soup.select_one("#searchlist table.m_srchList "\
-                                        "tbody#search-result tr.frtrt "\
-                                        "td.checktd label.text-dark-lter "\
-                                        "input").get('value'))
+        soup = BeautifulSoup(response.content, features="lxml")
+        # checkif the company name is not fully matched, if happens then print
+        # the name of company
+        try:
+            uid_list.append(soup.select_one("#searchlist table.m_srchList "\
+                                            "tbody#search-result tr.frtrt "\
+                                            "td.checktd label.text-dark-lter "\
+                                            "input").get('value'))
+        except:
+            print(name)
+
     return uid_list
 
 
 def get_basic_info_soup(header_basic_info: dict, \
                         uid_list: list) -> List[BeautifulSoup]:
+    
+    # use a counter to simulate human operation, every 20 times, we sleep 5 seconds
+    counter = 0
     
     # generate basic information request url
     basic_info_request_url_list = ["https://www.qichacha.com/firm_{}.html"\
@@ -34,8 +54,14 @@ def get_basic_info_soup(header_basic_info: dict, \
     
     basic_soup_list = []
     for url in tqdm_notebook(basic_info_request_url_list):
+        
+        counter += 1
+        if counter % 20 == 0:
+            sleep(5)
+            counter = 0
+        
         response = requests.get(url, headers=header_basic_info)
-        basic_soup_list.append(BeautifulSoup(response.content))
+        basic_soup_list.append(BeautifulSoup(response.content, features="lxml"))
     
     return basic_soup_list
 
@@ -61,8 +87,9 @@ def parse_basic_info(basic_soup: BeautifulSoup) -> dict:
     info_dict['网站'] = panel.find('div', {'class': 'row'})\
                             .find('div', {'class': 'dcontent'})\
                             .find("div", {'class': 'row'})\
-                            .find_all('a', href=True)[-1]\
-                            .text.strip()
+                            .find_all('span')[-1]\
+                            .text.strip()\
+                            .split()[0]
     
     #
     # 工商信息
@@ -152,6 +179,7 @@ def parse_basic_info(basic_soup: BeautifulSoup) -> dict:
     return info_dict
 
 def get_dev_info_soup(header_dev_info: dict, \
+                      company_list: list, \
                       uid_list: list) -> List[BeautifulSoup]:
 
     # generate header for getting development information
@@ -169,8 +197,12 @@ def get_dev_info_soup(header_dev_info: dict, \
     soup_dev_info_list = []
     for header, url in tqdm_notebook(zip(header_dev_info_list, dev_request_url_list), \
                                      total=len(header_dev_info_list)):
+        
+        # simulating human operation
+        sleep(5)
+        
         response = requests.get(url, headers=header)
-        soup_dev_info_list.append(BeautifulSoup(response.content))
+        soup_dev_info_list.append(BeautifulSoup(response.content, features="lxml"))
     
     return soup_dev_info_list
 
@@ -258,8 +290,12 @@ def parse_dev_info(dev_soup: BeautifulSoup) -> dict:
     table_names \
     = [name.text.strip().split()[0] \
        for name in main_panel.find_all('div')]
-    table_index = table_names.index("社保信息")
-    panel = main_panel.find_all('table')[table_index]
+    # check whether has this table
+    try:
+        table_index = table_names.index("社保信息")
+        panel = main_panel.find_all('table')[table_index]
+    except:
+        return info_dict
     
     # 城镇职工基本养老保险, 职工基本医疗保险
     _row = panel.find_all('tr')[0]
