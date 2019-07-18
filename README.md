@@ -10,7 +10,6 @@
 
 ## Instruction
 
----
 
 This crawler is designed for specific use case, you can find that I only parsed some specific information. However the code's logic is easy to read and you can customize it to meet you personal demand.
 
@@ -18,8 +17,6 @@ This crawler is designed for specific use case, you can find that I only parsed 
 - Please check the function in `utils.py` which includes all core codes
 
 ## Functions details in utils.py
-
----
 
 ### get_firm_uid(header_uids: dict, name_list: list) -> List[str]
 
